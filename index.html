@@ -1,0 +1,175 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>种树炼金吃果果</title>
+<link rel="stylesheet" href="style.css?v=1019v">
+</head>
+<body>
+<div id="game" class="phase-title">
+  <canvas id="view"></canvas>
+
+  <!-- 地表：左上角药剂架下面是脚下这块地（按 F 在下面弹出种子菜单）；主角头顶只留炼药、上下层、摘果子的小提示 -->
+  <div id="surf" class="hidden">
+    <div id="plotBox" class="px-flat hidden"></div>
+    <div id="seedMenu" class="px-flat hidden"></div>
+    <div id="plotTag" class="px-tag"></div>
+    <div id="campBox" class="px-flat hidden"></div>
+    <button id="btnSleep" class="pxbtn purple hidden">睡觉</button>
+  </div>
+
+  <!-- 种植 HUD -->
+  <div id="hud" class="hidden">
+    <!-- 养分计分板，最下面一条随时限缩短的进度条 -->
+    <div id="nutBox" class="px-flat">
+      <div class="nb-head"><span>养分</span><span id="hudStage" class="nb-stage">幼苗</span></div>
+      <div class="nb-main"><span id="hudNut" class="nb-num"></span><span id="hudFruit" class="nb-fruit"></span></div>
+      <div class="nb-time"><i id="barTime"></i></div>
+      <div id="nutPops"></div>
+    </div>
+    <button id="btnHarvest" class="pxbtn yellow">收获 <kbd>H</kbd></button>
+  </div>
+  <!-- 收获结算：上面是树高读数（主），下面一道分隔，是这次收下的东西（次） -->
+  <div id="growTally" class="px-flat hidden">
+    <div class="nb-head"><span>树高</span><span id="tlTree" class="nb-stage"></span></div>
+    <div class="tl-h"><span id="tlHNum" class="nb-num"></span><span class="tl-unit">米</span></div>
+    <div class="tl-sep"></div>
+    <div class="nb-head"><span>收获</span><span id="tlTotal" class="tl-total"></span></div>
+    <div id="tlItems" class="tl-items"></div>
+  </div>
+
+  <!-- 炼金工坊（洞穴里的炼药锅）：左材料 / 中间药剂架、锅位、大锅，锅下面出瓶 / 右这一锅的药效 -->
+  <div id="alchemy" class="hidden">
+    <div id="wsDim"></div>
+    <div id="alcStage">
+      <div id="wsMats" class="px-panel">
+        <div class="ws-head"><span class="ptitle">材料</span><span id="matsN" class="ws-sub"></span></div>
+        <div id="mats"></div>
+      </div>
+      <div id="potSlots"></div>
+      <button id="btnBrew" class="pxbtn yellow">按住出瓶 <kbd>空格</kbd><span class="rc-bar"><i></i></span></button>
+      <div id="wsRight" class="px-panel">
+        <div class="ws-head"><span class="ptitle">这一锅</span><span id="brewTag"></span></div>
+        <div id="brewInfo"></div>
+      </div>
+      <canvas id="wsFx" width="960" height="540"></canvas>
+      <div id="alcFoot"><button id="btnOut" class="pxbtn green">离开</button></div>
+    </div>
+  </div>
+
+  <!-- 药剂架（快捷栏）：左上角 1-3、右上角 4-6 两条。地表、种植、炼金时都在 -->
+  <div id="shelf">
+    <div id="hotL" class="hbar"></div>
+    <div id="hotR" class="hbar"></div>
+  </div>
+  <!-- 库存：右下角按钮（B），点开是专门的库存界面 -->
+  <button id="btnBag" class="pxbtn gray hidden" title="药剂库存 (B)"><svg viewBox="0 0 16 16" width="24" height="24" shape-rendering="crispEdges"><path fill="currentColor" fill-rule="evenodd" d="M6 1h4v2H9v3h1v1h1v1h1v1h1v4h-1v1h-1v1H5v-1H4v-1H3V9h1V8h1V7h1V6h1V3H6zM5 10v2h1v-2z"/></svg></button>
+  <div id="bagView" class="hidden">
+    <div class="bg-dim"></div>
+    <div class="bg-card px-panel pin">
+      <div class="bg-head"><span class="ptitle">药剂库存 <span id="bagN"></span></span><button id="bagClose" class="pxbtn red tiny" title="关上 (B)">×</button></div>
+      <div class="bg-body">
+        <div id="bagList"></div>
+        <div id="bagInfo"></div>
+      </div>
+      <div class="bg-shelf"><div id="bagL" class="bg-grp"></div><div id="bagR" class="bg-grp"></div></div>
+    </div>
+  </div>
+
+  <!-- 崖顶营地：堆肥坑、工作台（camp.js）。和炼药锅一样的整屏舞台：左一栏、正中放大的道具、锅下面按住的按钮、右一栏，顶上一块堆肥计数 -->
+  <div id="campView" class="hidden">
+    <div id="cpDim"></div>
+    <div id="cpStage">
+      <div id="cpLeft" class="px-panel">
+        <div class="ws-head"><span id="cpTitle" class="ptitle"></span><span id="cpSub" class="ws-sub"></span></div>
+        <div id="cpList"></div>
+      </div>
+      <div id="cpCount" class="px-flat"></div>
+      <button id="cpHold" class="pxbtn yellow"><span id="cpHoldT"></span><span class="rc-bar"><i></i></span></button>
+      <div id="cpRight" class="px-panel">
+        <div class="ws-head"><span id="cpRTitle" class="ptitle"></span><span id="cpRTag"></span></div>
+        <div id="cpInfo"></div>
+      </div>
+      <canvas id="cpFx" width="960" height="540"></canvas>
+      <div id="cpKeys"></div>
+      <div id="cpFoot"><button id="cpClose" class="pxbtn green">离开 <kbd>Esc</kbd></button></div>
+    </div>
+  </div>
+
+  <div id="pickBox" class="px-panel hidden"></div>
+  <div id="banner" class="hidden"></div>
+  <div id="tutTip" class="px-flat"></div>
+  <div id="popups"></div>
+  <div id="overlay" class="hidden"></div>
+  <div id="tooltip" class="hidden"></div>
+  <!-- 植物学笔记：右下角按钮（N），打开是一本翻开的书 -->
+  <button id="btnNote" class="pxbtn gray hidden" title="植物学笔记 (N)"><img src="assets/ui/icon_book.png?v=1018t" alt=""><i class="dot hidden"></i></button>
+  <div id="noteToast" class="hidden"></div>
+  <div id="noteBook" class="hidden">
+    <div class="bk-dim"></div>
+    <div class="bk-book">
+      <div id="bkTabs" class="bk-tabs"></div>
+      <div id="bkPageL" class="bk-page l"><div class="bk-pg"></div><div class="bk-no"></div></div>
+      <div id="bkPageR" class="bk-page r"><div class="bk-pg"></div><div class="bk-no"></div></div>
+      <button id="bkPrev" class="pxbtn gray tiny bk-arrow prev" title="上一页 (A)">◀</button>
+      <button id="bkNext" class="pxbtn gray tiny bk-arrow next" title="下一页 (D)">▶</button>
+      <button id="bkClose" class="pxbtn red tiny bk-close" title="合上 (N)">×</button>
+    </div>
+  </div>
+  <!-- 设置：右下角方形按钮，点开面板 -->
+  <button id="btnSet" class="pxbtn gray" title="设置 (Esc)"><svg viewBox="0 0 16 16" width="24" height="24" shape-rendering="crispEdges"><path fill="currentColor" d="M7 1h2v2h2V2h2v2h-1v2h2v2h-2v2h1v2h-2v-1h-2v2H7v-2H5v1H3v-2h1V8H2V6h2V4H3V2h2v1h2zM7 6v3h2V6z"/></svg></button>
+  <div id="setPanel" class="px-panel hidden">
+    <div class="ptitle">设置</div>
+    <div class="set-row"><span>音乐 / 音效</span><button id="btnMute" class="pxbtn tiny green" title="静音 (M)">开</button></div>
+    <div class="set-row"><span>震屏 / 闪光</span><button id="setShake" class="pxbtn tiny green">开</button></div>
+    <div class="set-row hidden"><span>地下地图</span><button id="setMap" class="pxbtn tiny green" title="设计地图（editor.html）/ 原来的随机生成">设计</button></div>
+  </div>
+</div>
+
+<!-- 触屏按键（touch.js）：在 #game 外面，按屏幕实际像素摆在窗口左下、右下角 -->
+<div id="touch" class="hidden">
+  <div id="tPad" data-dir=""><i class="w"><svg viewBox="0 0 7 4" shape-rendering="crispEdges"><path fill="currentColor" d="M3 0h1v1h1v1h1v1h1v1H0V3h1V2h1V1h1z"/></svg></i><i class="a"><svg viewBox="0 0 7 4" shape-rendering="crispEdges"><path fill="currentColor" d="M3 0h1v1h1v1h1v1h1v1H0V3h1V2h1V1h1z"/></svg></i><i class="d"><svg viewBox="0 0 7 4" shape-rendering="crispEdges"><path fill="currentColor" d="M3 0h1v1h1v1h1v1h1v1H0V3h1V2h1V1h1z"/></svg></i><i class="s"><svg viewBox="0 0 7 4" shape-rendering="crispEdges"><path fill="currentColor" d="M3 0h1v1h1v1h1v1h1v1H0V3h1V2h1V1h1z"/></svg></i></div>
+  <div id="tBtns">
+    <div id="tDig" class="tb hidden">铲</div>
+    <div id="tAct" class="tb off"></div>
+    <div id="tJump" class="tb">跳</div>
+  </div>
+</div>
+<!-- 手机竖着拿：游戏停住，请横过来 -->
+<div id="rotate" class="hidden">
+  <svg viewBox="0 0 16 10" width="96" height="60" shape-rendering="crispEdges"><path fill="currentColor" fill-rule="evenodd" d="M1 0h14v1h1v8h-1v1H1V9H0V1h1zM2 2v6h11V2zM14 4v2h1V4z"/></svg>
+  <div>请把手机横过来</div>
+</div>
+<script src="js/util.js?v=1018t"></script>
+<script src="js/data.js?v=1019c"></script>
+<script src="js/strata.js?v=1019m"></script>
+<script src="js/strata_gen.js?v=1018t"></script>
+<script src="js/sprites.js?v=1018t"></script>
+<script src="js/alchemy.js?v=1018x"></script>
+<script src="js/art.js?v=1018x"></script>
+<script src="js/pixel.js?v=1018x"></script>
+<script src="js/tree.js?v=1019e"></script>
+<script src="js/tree_art.js?v=1019e"></script>
+<script src="js/field.js?v=1019e"></script>
+<script src="js/render.js?v=1019f"></script>
+<script src="js/cliff_art.js?v=1018t"></script>
+<script src="js/cliff.js?v=1018t"></script>
+<script src="js/geo.js?v=1019c"></script>
+<script src="js/hero_sheet.js?v=1018t"></script>
+<script src="js/hero.js?v=1019t"></script>
+<script src="js/cave_art.js?v=1018t"></script>
+<script src="js/cave.js?v=1019t"></script>
+<script src="js/camp_art.js?v=1018t"></script>
+<script src="js/east.js?v=1019t"></script>
+<script src="js/camp.js?v=1019t"></script>
+<script src="js/ui.js?v=1019v"></script>
+<script src="js/workshop.js?v=1019u"></script>
+<script src="js/mail.js?v=1019c"></script>
+<script src="js/notes.js?v=1019e"></script>
+<script src="js/audio.js?v=1019b"></script>
+<script src="js/touch.js?v=1019a"></script>
+<script src="js/tutorial.js?v=1019a"></script>
+<script src="js/main.js?v=1019v"></script>
+</body>
+</html>

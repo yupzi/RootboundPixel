@@ -1,0 +1,8 @@
+主角小禾的精灵
+  Original character template created by Eris Esra: https://erisesra.itch.io/character-templates-pack
+  授权要点（原文）：Using the templates for commercial and non-commercial projects. For example, putting them in games, is allowed!
+    If the product is free, you MUST credit, and link to the original template.
+    Using the templates for character commissions, asset packs, ect, is not allowed! You cannot resell the template with addons, or modifications.
+  修改：在 16x32 模板上画了头发、头顶小芽、衣服（绿上衣、腰带、小药瓶、长裤、靴子）、暖肤色。
+  模板原图在 src/erisesra-template/，生成脚本是 tools/build_hero.py。
+  注意：模板授权禁止把模板（或改过的模板）当素材包转发 / 出售，所以 src/ 里的原图不要单独分发。

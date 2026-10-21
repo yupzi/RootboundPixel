@@ -1,0 +1,822 @@
+/* 纸张界面：奶油色纸面 + 棕色描边、深墨色文字、皮革与木框。素材来自 UI assets pack 2（tools/build_ui.py 裁出、放大 2 倍）
+   像素网格：画面一个像素 = 舞台 2px，界面的边框、间距、图标也一样（尺寸取偶数，图标、药瓶按原图 2 倍）；字用 Fusion Pixel 12px 原大（12 / 24 / 48）
+   九宫格切片（2 倍后的像素）：paper 12 / paper_pin 24 / parchment 12 / slot 14 / book_l 8 20 28 22 / book_r 8 22 28 20 */
+@font-face {
+  font-family: 'FusionPixel';
+  src: url('assets/fonts/fusion-pixel-12px-zh_hans.woff2?v=1018b') format('woff2');
+  font-display: block;
+}
+:root {
+  --ink: #303843;      /* 描边 */
+  --paper: #fee1b8;
+  --paper2: #f9d6a4;   /* 纸上的格子、行 */
+  --paper3: #f2b888;   /* 纸的阴影、横线 */
+  --line: #d4c692;
+  --brown: #a57855;
+  --brown-d: #7a5859;
+  --leather: #593e47;
+  --bark: #3d3333;
+  --text: #3d3333;     /* 纸上的字 */
+  --dim: #8c6f5c;
+  --rust: #b55945;
+  --rust-d: #733621;
+  --gold: #fdd179;
+  --gold-d: #d9a24a;
+  --green: #a6b04f;
+  --green-d: #819447;
+  --green-t: #5d6e22;
+  --navy: #405273;
+  --navy-d: #2c3a55;
+  --red-t: #a8323a;
+  --warn-t: #b0651e;
+  --pen: #405273;      /* 玩家自己写的笔记：蓝墨水 */
+  --notch: polygon(2px 0, calc(100% - 2px) 0, 100% 2px, 100% calc(100% - 2px), calc(100% - 2px) 100%, 2px 100%, 0 calc(100% - 2px), 0 2px);
+}
+* { box-sizing: border-box; margin: 0; padding: 0; border-radius: 0; }
+html, body { width: 100%; height: 100%; background: #120e10; overflow: hidden; }
+body {
+  font-family: 'FusionPixel', monospace;
+  font-size: 12px; line-height: 16px; color: var(--text);
+  -webkit-font-smoothing: none; font-smooth: never;
+  user-select: none;
+}
+* { image-rendering: pixelated; }
+img, canvas { image-rendering: pixelated; image-rendering: crisp-edges; }
+b { color: var(--rust); font-weight: normal; }
+kbd { font-family: inherit; display: inline-block; text-indent: 0; padding: 0 3px; margin: 0 1px; background: var(--leather); color: var(--paper); line-height: 14px; box-shadow: 0 2px 0 var(--bark); }
+.hidden { display: none !important; }
+.hint { color: var(--dim); }
+.t-dim { color: var(--dim); }
+
+#game { position: absolute; left: 0; top: 0; width: 960px; height: 540px; overflow: hidden; background: #241820; }
+#view { position: absolute; left: 0; top: 0; width: 962px; height: 542px; } /* 比舞台多一个游戏像素，镜头的亚像素平移用 */
+
+/* ---------- 纸面板 ---------- */
+.px-panel {
+  position: absolute; border: 6px solid transparent;
+  border-image: url('assets/ui/paper.png?v=1018b') 12 fill / 12px round;
+  padding: 4px 6px; color: var(--text);
+}
+.px-panel.pin, #overlay .card { border: 18px solid transparent; border-image: url('assets/ui/paper_pin.png?v=1018b') 24 fill / 24px round; padding: 10px 14px; }
+.px-tag {
+  position: absolute; border: 4px solid transparent; border-image: url('assets/ui/paper.png?v=1018b') 12 fill / 12px round;
+  padding: 2px 6px; white-space: nowrap; color: var(--text);
+}
+.px-tag.big { font-size: 24px; line-height: 28px; padding: 4px 14px; }
+.px-hint { position: absolute; color: #fff; text-shadow: 2px 0 var(--ink), -2px 0 var(--ink), 0 2px var(--ink), 0 -2px var(--ink); white-space: nowrap; }
+.px-hint b { color: var(--gold); }
+.ptitle { color: var(--rust); margin-bottom: 4px; }
+.row { display: flex; justify-content: space-between; gap: 10px; }
+.row.small { color: var(--dim); }
+
+.bar { height: 10px; background: var(--leather); border: 2px solid var(--ink); margin: 4px 0 6px; position: relative; }
+.bar i { display: block; height: 100%; background: var(--green); box-shadow: inset 0 2px 0 rgba(255,255,255,.35), inset 0 -2px 0 rgba(0,0,0,.2); transition: width .15s steps(4); }
+.bar.time i { background: var(--gold); }
+.bar.oasis i { background: var(--green); }
+@keyframes blink { 50% { opacity: .35; } }
+
+/* ---------- 按钮：缎带配色（红 / 绿 / 金 / 藏青 / 纸） ---------- */
+.pxbtn {
+  font-family: inherit; font-size: 12px; line-height: 16px; color: var(--ink); cursor: pointer;
+  background: var(--green); border: 2px solid var(--ink); padding: 4px 12px 6px; clip-path: var(--notch);
+  box-shadow: inset 0 -4px 0 var(--green-d), inset 0 2px 0 rgba(255,255,255,.4);
+}
+.pxbtn:hover { filter: brightness(1.08); }
+.pxbtn:active { transform: translateY(2px); box-shadow: inset 0 -2px 0 var(--green-d); }
+.pxbtn:disabled { filter: grayscale(.8) brightness(.85); cursor: default; }
+.pxbtn.yellow { background: var(--gold); box-shadow: inset 0 -4px 0 var(--gold-d), inset 0 2px 0 rgba(255,255,255,.5); }
+.pxbtn.gray { background: var(--paper); box-shadow: inset 0 -4px 0 var(--paper3), inset 0 2px 0 rgba(255,255,255,.6); }
+.pxbtn.purple { background: var(--navy); color: var(--paper); box-shadow: inset 0 -4px 0 var(--navy-d), inset 0 2px 0 rgba(255,255,255,.25); }
+.pxbtn.red { background: var(--rust); color: var(--paper); box-shadow: inset 0 -4px 0 var(--rust-d), inset 0 2px 0 rgba(255,255,255,.3); }
+.pxbtn.big { font-size: 24px; line-height: 28px; padding: 8px 24px 12px; }
+.pxbtn.tiny { padding: 2px 6px 4px; }
+.pxbtn kbd { background: rgba(48,56,67,.75); box-shadow: none; }
+
+/* ---------- 地表 ---------- */
+#plotTag { transform: translate(-50%, -100%); text-align: center; pointer-events: none; line-height: 16px; margin-top: -8px; padding: 0 6px 2px; white-space: nowrap; }
+#plotTag kbd { margin-right: 2px; }
+#plotTag::after { content: ''; position: absolute; left: 50%; bottom: -12px; margin-left: -6px; border: 6px solid transparent; border-top-color: var(--brown-d); }
+.fr { display: inline-block; width: 6px; height: 6px; margin: 0 4px 2px 2px; background: #e4574a; box-shadow: 0 -2px 0 0 var(--green), inset -2px -2px 0 var(--rust-d); }
+#plotTag .ok { color: var(--green-t); } #plotTag .warn { color: var(--warn-t); } #plotTag .bad { color: var(--red-t); }
+
+/* ---------- 素色深底：养分板、收获栏、地块条、种子菜单。皮面 + 墨线，不用纸框 ---------- */
+.px-flat { position: absolute; background: var(--leather); border: 2px solid var(--ink); box-shadow: 0 0 0 2px var(--brown-d), inset 0 -4px 0 var(--bark); color: var(--paper);
+  --ok: #b5d65a; --warn: var(--gold); --bad: #ff8a7a; }
+.px-flat kbd { background: var(--paper); color: var(--ink); box-shadow: 0 2px 0 var(--paper3); }
+.px-flat b { color: var(--gold); }
+
+/* ---------- 种植 HUD ---------- */
+/* 养分计分板：皮面上的街机读数，前导零压暗；树长到新阶段时徽章闪一下。最下面一条时限条，随剩余时间缩短 */
+#nutBox { left: 50%; top: 8px; transform: translateX(-50%); width: 176px; padding: 4px 8px 8px; }
+.nb-time { height: 8px; margin-top: 4px; background: var(--bark); border: 2px solid var(--ink); }
+.nb-time i { display: block; height: 100%; background: var(--gold); box-shadow: inset 0 -2px 0 var(--gold-d); }
+.nb-time.danger i { background: #e4574a; box-shadow: inset 0 -2px 0 var(--rust-d); animation: blink .4s steps(1) infinite; }
+.nb-head { display: flex; justify-content: space-between; align-items: center; color: var(--line); }
+.nb-stage { padding: 0 4px; color: var(--ink); background: var(--green); box-shadow: inset 0 -2px 0 var(--green-d); line-height: 16px; }
+.nb-stage.up { animation: stageUp .6s steps(3); }
+@keyframes stageUp { 0% { background: #fff; transform: scale(1.25); } 50% { background: var(--gold); } }
+.nb-main { display: flex; justify-content: space-between; align-items: flex-end; }
+.nb-num { font-size: 24px; line-height: 26px; letter-spacing: 2px; color: var(--gold); text-shadow: 2px 2px var(--rust-d); }
+.nb-num .z { color: #7a5d63; text-shadow: none; }
+.nb-num.bump { animation: nbBump .2s steps(2); }
+@keyframes nbBump { 50% { transform: translateY(-4px); color: #fff; } }
+.nb-num.drain { color: #ff7a6a; text-shadow: 2px 2px var(--rust-d); animation: nbShake .2s steps(2) infinite; }
+@keyframes nbShake { 50% { transform: translateX(2px); } }
+.nb-fruit { color: var(--paper); padding-bottom: 2px; }
+.nb-fruit::before { content: ''; display: inline-block; width: 6px; height: 6px; margin-right: 4px; background: #e4574a; box-shadow: 0 -2px 0 0 var(--green), inset -2px -2px 0 var(--rust-d); }
+.nb-fruit.bump { animation: nbBump .3s steps(2); color: var(--gold); }
+#nutPops { position: absolute; left: 0; right: 0; top: 0; bottom: 0; pointer-events: none; }
+#nutPops span { position: absolute; top: 14px; color: var(--c); text-shadow: 2px 2px var(--ink), -2px -2px var(--ink), 2px -2px var(--ink), -2px 2px var(--ink); animation: nbPop .9s steps(9) forwards; }
+@keyframes nbPop { 0% { transform: translateY(4px); } 30% { transform: translateY(-6px); } 100% { transform: translateY(-14px); opacity: 0; } }
+#btnHarvest { position: absolute; right: 12px; top: 88px; }
+/* 收获结算栏：和养分板同一套皮面。树高是主读数（大号金字，前导零压暗），分隔线下是收获的材料（小格子，数量挂在右下角） */
+#growTally { left: 8px; top: 8px; width: 176px; padding: 4px 8px 8px; }
+.tl-h { display: flex; align-items: flex-end; gap: 4px; margin-top: 2px; }
+.tl-unit { color: var(--line); padding-bottom: 2px; }
+#tlHNum.fin { animation: tlFin .5s steps(5); }
+@keyframes tlFin { 0% { transform: scale(1.5); color: #fff; } 40% { transform: scale(.92); } 70% { transform: scale(1.08); } }
+#growTally.done { animation: tlRing .5s steps(3); }
+@keyframes tlRing { 0%, 66% { box-shadow: 0 0 0 2px var(--gold), inset 0 -4px 0 var(--bark); } }
+.tl-sep { height: 2px; margin: 6px -8px 4px; background: var(--bark); box-shadow: 0 2px 0 #6b4d56; }
+.tl-total { color: var(--paper); }
+.tl-total:empty::before { content: '—'; color: #7a5d63; }
+/* 采摘、拾取提示也用 .tl-items：图标 + 数量排成一行 */
+.tl-items { display: flex; flex-wrap: wrap; gap: 2px 6px; margin-top: 2px; }
+.tl-items span { display: flex; align-items: center; gap: 2px; }
+.tl-items img { width: 20px; height: 20px; }
+#tlItems { gap: 4px; margin-top: 4px; }
+#tlItems:empty { display: none; }
+#tlItems span { display: block; position: relative; width: 24px; height: 24px; background: var(--bark); box-shadow: inset 0 2px 0 rgba(0,0,0,.35); }
+#tlItems span.pop { animation: tlPop .25s steps(3); }
+@keyframes tlPop { 0% { transform: translateY(-4px) scale(1.2); background: var(--gold-d); } }
+#tlItems img { position: absolute; left: 2px; top: 2px; }
+#tlItems i { position: absolute; right: -2px; bottom: -4px; font-style: normal; line-height: 12px; color: var(--paper);
+  text-shadow: 1px 0 var(--ink), -1px 0 var(--ink), 0 1px var(--ink), 0 -1px var(--ink); }
+
+/* ---------- 药剂架：左上角 1-3、右上角 4-6 两条纸带，正上方是种子袋 ----------
+   袋子是压进纸里的凹槽：棕色描边、上沿一道阴影、下沿一道亮边；数量写在右下角的小皮标签上 */
+#shelf { position: absolute; left: 0; right: 0; top: 0; height: 0; }
+.hbar { position: absolute; top: 6px; display: flex; gap: 4px; padding: 0 2px; border: 6px solid transparent; border-image: url('assets/ui/paper.png?v=1018b') 12 fill / 12px round; }
+#hotL { left: 8px; }
+#hotR { right: 8px; }
+/* 炼药时两条药剂并到上方正中（左右两边是材料和这一锅） */
+#game.phase-alchemy #shelf { left: 50%; top: 12px; right: auto; height: auto; transform: translateX(-50%); display: flex; align-items: flex-start; gap: 4px; }
+#game.phase-alchemy .hbar { position: static; padding: 0; }
+.hslot { position: relative; width: 48px; height: 64px; background: var(--paper3); border: 2px solid var(--brown-d); cursor: pointer;
+  box-shadow: inset 0 4px 0 rgba(122,88,89,.35), inset 0 -2px 0 #fde9c8; }
+.hslot .key { position: absolute; left: 2px; top: 0; color: var(--brown-d); line-height: 16px; z-index: 1; }
+.hslot img { position: absolute; left: 4px; top: 4px; width: 36px; height: 48px; transform-origin: 50% 20%; }
+.hslot .cnt { position: absolute; right: -2px; bottom: -2px; padding: 0 2px; line-height: 16px; background: var(--leather); color: var(--paper); border: 2px solid var(--ink); z-index: 1; }
+.hslot .mode { position: absolute; right: 2px; top: 2px; width: 8px; height: 8px; border: 2px solid var(--ink); background: #6aa0d8; z-index: 1; }
+.hslot.shot .mode { background: #e4574a; }
+.hslot .ghost { position: absolute; left: 14px; top: 16px; width: 16px; height: 28px; border: 2px dashed rgba(122,88,89,.4); border-top-width: 6px; }
+.hslot:hover { background: #f8cc9a; }
+.hslot.pouring { background: var(--gold); }
+.hslot.pouring img { transform: rotate(-35deg) translate(-4px, 2px); animation: drip .25s steps(2) infinite; }
+@keyframes drip { 50% { transform: rotate(-40deg) translate(-4px, 4px); } }
+.hslot.fired { animation: fire .3s steps(3); }
+@keyframes fire { 0% { background: #fff4d0; } 100% { background: var(--paper3); } }
+
+/* 左上角药剂架下面的地块条：一行小字，土的颜色块 + 名字、长着什么、能做什么。不在地上时变淡
+   和养分板一样是素色深底 */
+#plotBox, #seedMenu { left: 10px; white-space: nowrap; }
+#plotBox { top: 90px; display: flex; align-items: center; gap: 10px; padding: 2px 8px 6px; pointer-events: none; }
+#plotBox.far { opacity: .6; }
+.pb-soil i { display: inline-block; width: 10px; height: 10px; margin: 0 4px 2px 0; vertical-align: middle; border: 2px solid var(--ink); }
+.pb-sp { color: var(--ok); }
+.pb-do { color: var(--line); }
+.pb-do kbd { margin-right: 2px; }
+/* 种子菜单：按 F 从地块条下面弹出 */
+#seedMenu { top: 126px; padding: 6px 8px 8px; }
+.sm-row { display: flex; gap: 4px; }
+.sm-c { position: relative; width: 48px; height: 52px; background: var(--bark); border: 2px solid var(--brown-d); cursor: pointer; box-shadow: inset 0 -4px 0 var(--sc); }
+.sm-c img { display: block; width: 40px; height: 40px; margin: 2px auto 0; pointer-events: none; }
+.sm-c .ct { position: absolute; right: -2px; top: -2px; padding: 0 2px; line-height: 16px; background: var(--ink); color: var(--paper); }
+.sm-c:hover { border-color: var(--brown); }
+.sm-c.cur { border-color: var(--gold); background: #4f3a3c; }
+.sm-c.no img { opacity: .45; filter: grayscale(.6); }
+.sm-c.deny { animation: lack .3s steps(4); }
+.sm-nm { margin-top: 4px; }
+.sm-keys { color: var(--line); }
+#plotBox .warn, #seedMenu .warn { color: var(--warn); } #seedMenu .ok { color: var(--ok); } #seedMenu .bad { color: var(--bad); }
+
+/* ---------- 库存：右下角按钮，点开是一张钉着的大纸 ---------- */
+#btnBag { position: absolute; right: 108px; bottom: 12px; z-index: 15; width: 40px; height: 40px; padding: 0 0 4px; display: flex; align-items: center; justify-content: center; }
+#bagView { position: absolute; inset: 0; z-index: 40; }
+#bagView .bg-dim { position: absolute; inset: 0; background: rgba(18,12,14,.72); }
+.bg-card { left: 50%; top: 50%; transform: translate(-50%, -50%); width: 740px; height: 470px; display: flex; flex-direction: column; gap: 8px; }
+.bg-head { display: flex; align-items: center; gap: 12px; }
+.bg-head .ptitle { margin: 0; font-size: 24px; line-height: 28px; }
+.bg-head .ptitle span { font-size: 12px; color: var(--dim); }
+.bg-head .ptitle { flex: 1; }
+.bg-body { flex: 1; min-height: 0; display: flex; gap: 10px; }
+#bagList { width: 436px; overflow-y: auto; display: grid; grid-template-columns: repeat(auto-fill, 52px); grid-auto-rows: 64px; gap: 16px 14px; justify-content: center; align-content: start; padding: 14px 10px;
+  background: var(--paper2); border: 2px solid var(--line); }
+.bcard { position: relative; width: 52px; height: 64px; background: var(--paper3); border: 2px solid var(--brown-d); cursor: pointer; text-align: center;
+  box-shadow: inset 0 4px 0 rgba(122,88,89,.35), inset 0 -2px 0 #fde9c8; }
+.bcard img { display: block; width: 36px; height: 48px; margin: 8px auto 4px; }
+.bcard .ct { position: absolute; right: -2px; top: -2px; padding: 0 2px; line-height: 16px; background: var(--leather); color: var(--paper); border: 2px solid var(--ink); }
+.bcard .on { position: absolute; left: -2px; top: -2px; width: 20px; line-height: 16px; background: var(--gold); color: var(--ink); border: 2px solid var(--ink); }
+.bcard:hover { background: #f8cc9a; }
+.bcard.sel { background: var(--gold); border-color: var(--rust); box-shadow: inset 0 0 0 2px var(--gold-d); }
+#bagInfo { flex: 1; overflow-y: auto; padding: 8px 10px; background: var(--paper2); border: 2px solid var(--line); }
+#bagInfo .bi-top { display: flex; gap: 10px; align-items: center; padding: 2px 0 6px; border-bottom: 2px dashed var(--line); }
+#bagInfo .bi-top img { width: 36px; height: 48px; }
+#bagInfo .bi-nm { font-size: 24px; line-height: 28px; color: var(--rust); margin-bottom: 2px; }
+#bagInfo .bi-top > div > div { line-height: 16px; }
+#bagInfo .bi-top > div > .bi-nm { line-height: 28px; }
+#bagInfo .bi-ct { color: var(--leather); }
+#bagInfo .bi-md { color: var(--navy); } #bagInfo .bi-md.shot { color: var(--rust); }
+#bagInfo .bi-ins { margin-top: 6px; padding: 4px 0; line-height: 16px; }
+#bagInfo .bi-on { margin-top: 8px; color: var(--dim); }
+#bagInfo .bi-on b { color: var(--rust); }
+.bg-shelf { display: flex; justify-content: center; align-items: center; gap: 32px; }
+.bg-grp { display: flex; align-items: flex-start; gap: 4px; padding: 4px; background: var(--paper2); border: 2px solid var(--line); }
+.bg-grp .hslot.cur { background: var(--gold); }
+#bagView .hslot:hover { border-color: var(--rust); }
+/* 拖拽：跟着指针的药瓶；松手处高亮 */
+.bag-ghost { position: fixed; z-index: 100; pointer-events: none; image-rendering: pixelated; opacity: .85; }
+#bagView.dragging, #bagView.dragging * { cursor: grabbing; }
+.bg-cell { width: 104px; display: flex; flex-direction: column; align-items: center; gap: 4px; cursor: pointer; touch-action: none; }
+.bg-cell:hover .hslot { border-color: var(--rust); }
+.bg-nm { width: 100%; text-align: center; line-height: 16px; word-break: break-all; color: var(--lt); }
+.bg-nm.pour { color: #8fc0f0; } .bg-nm.shot { color: #ff8a7a; }
+.bg-nm:not(.pour):not(.shot) { opacity: .5; }
+#bagView .bg-cell.drop .hslot { filter: brightness(1.3); }
+#bagList.drop { box-shadow: inset 0 0 0 2px var(--gold); }
+.inv-empty { color: var(--line); grid-column: 1 / -1; text-align: center; font-size: 24px; line-height: 28px; padding-top: 110px; }
+
+/* ---------- 炼金工坊 ---------- */
+.c-spin { color: #c0457a; } .c-rock { color: #5a6a80; } .c-life { color: var(--green-t); } .c-soul { color: #2a7a78; }
+.c-star, .c-gold { color: var(--warn-t); } .c-green { color: var(--green-t); } .c-orange { color: var(--warn-t); } .c-red { color: var(--red-t); }
+.rb i { font-style: normal; display: inline-block; animation: rb .84s steps(1) infinite; animation-delay: calc(var(--i) * -.12s); }
+@keyframes rb {
+  0% { color: #d0383a; transform: translateY(0); } 14% { color: #d07a20; transform: translateY(-2px); } 28% { color: #b08a10; transform: translateY(-2px); }
+  42% { color: #4a8a2a; transform: translateY(-2px); } 57% { color: #1a8a9a; transform: translateY(0); } 71% { color: #4a5ad0; transform: translateY(2px); } 85% { color: #a040a0; transform: translateY(0); }
+}
+#alchemy { position: absolute; inset: 0; }
+#wsDim { position: absolute; inset: 0; background: radial-gradient(ellipse 60% 70% at 50% 72%, rgba(14,10,20,.7) 0%, rgba(10,8,14,.86) 62%, rgba(6,4,10,.92) 100%); }
+#alcStage { position: absolute; inset: 0; }
+#wsFx { position: absolute; left: 0; top: 0; width: 960px; height: 540px; pointer-events: none; }
+#game.aberr #wsFx { filter: drop-shadow(4px 0 0 rgba(255,40,90,.6)) drop-shadow(-4px 0 0 rgba(40,210,255,.6)); }
+
+@keyframes lack { 25% { transform: translateX(-4px); } 75% { transform: translateX(4px); } }
+
+/* 版面（960×540，外边距 12）：左 材料 12–228 ｜ 中 舞台 228–732（正中 480）｜ 右 这一锅 732–948
+   中间一栏从上到下：药剂架 12–88、锅位 112–、大锅（锅底 452）、出瓶 488–528；右栏下面同一行是离开、笔记、设置 */
+.ws-head { display: flex; justify-content: space-between; align-items: center; height: 20px; margin: 0 2px 4px; }
+.ws-head .ptitle { margin: 0; }
+.ws-sub { color: var(--dim); }
+
+/* 锅位：投料顺序 = 指令链。木框格子，下面是这一步做了什么 */
+#potSlots { position: absolute; left: 228px; width: 504px; top: 112px; display: flex; justify-content: center; align-items: flex-start; }
+.pslot { position: relative; width: 120px; display: flex; flex-direction: column; align-items: center; }
+.pslot .pf { position: relative; width: 64px; height: 64px; border: 4px solid transparent; border-image: url('assets/ui/slot.png?v=1018b') 14 fill / 14px stretch; cursor: pointer; }
+.pslot .pf img { display: block; width: 40px; height: 40px; margin: 8px; pointer-events: none; position: relative; }
+.pslot .pf .no { position: absolute; left: 2px; top: 0; color: var(--line); z-index: 1; }
+.pslot.empty .pf { cursor: default; opacity: .55; }
+.pslot.next .pf { opacity: 1; animation: nextSlot .8s steps(2) infinite; }
+@keyframes nextSlot { 50% { filter: brightness(1.6) sepia(.6); } }
+.pslot.on .pf { box-shadow: 0 0 0 2px var(--ac, var(--green)); }
+.pslot.bad .pf { box-shadow: 0 0 0 2px #e4574a; }
+.pslot.bad .pf img { opacity: .55; filter: grayscale(.6); }
+.pslot.pop .pf { animation: slotPop .22s steps(3); }
+@keyframes slotPop { 0% { transform: scale(1.35); } 60% { transform: scale(.92); } }
+.pslot .stp { margin-top: 8px; min-height: 32px; max-width: 116px; text-align: center; line-height: 16px; color: var(--ac, var(--green)); text-shadow: 2px 2px var(--ink), -2px -2px var(--ink), 2px -2px var(--ink), -2px 2px var(--ink); }
+.pslot.bad .stp { color: #ff8a7a; }
+.pslot .stp.fresh { animation: stpIn .3s steps(3); }
+@keyframes stpIn { 0% { transform: translateY(6px); opacity: 0; } }
+.pslot .arw { position: absolute; right: -6px; top: 24px; color: #7a6a70; }
+.pslot.on .arw { color: var(--gold); }
+.pslot:hover .pf:not(:empty) { filter: brightness(1.2); }
+
+/* 锅下面：出瓶在锅的正下方。和右下角的离开 / 笔记 / 设置同一行 */
+#btnBrew { position: absolute; top: 488px; height: 40px; padding: 0 0 4px; touch-action: none; user-select: none; }
+#btnBrew { left: 384px; width: 192px; overflow: hidden; }
+#btnBrew:disabled { filter: grayscale(1) brightness(.85); cursor: default; }
+#btnBrew.held { filter: brightness(1.15); transform: translateY(2px); }
+#btnBrew.deny { animation: lack .3s steps(4); }
+#btnBrew .rc-bar { position: absolute; left: 0; right: 0; bottom: 0; height: 4px; }
+#btnBrew .rc-bar i { display: block; height: 100%; width: 0; background: var(--rust); }
+
+/* 材料栏：分组标题 + 四列格子。格子上半是材料，下半一条按作用上色的标签，右上角皮标签是剩几份 */
+#wsMats { left: 12px; top: 12px; width: 216px; height: 516px; padding: 4px 2px 6px; display: flex; flex-direction: column; }
+#mats { flex: 1; min-height: 0; overflow-y: auto; padding: 0 2px; }
+.mg-h { display: flex; align-items: center; gap: 6px; margin: 6px 0 4px; color: var(--brown); }
+.mg-h:first-child { margin-top: 0; }
+.mg-h::after { content: ''; flex: 1; border-top: 2px dashed var(--line); }
+.mg { display: grid; grid-template-columns: repeat(4, 44px); gap: 6px 4px; padding-top: 2px; }
+.mc { position: relative; width: 44px; height: 60px; background: var(--paper2); border: 2px solid var(--brown); cursor: pointer; touch-action: none; user-select: none; -webkit-user-select: none;
+  box-shadow: inset 0 2px 0 #fde9c8; }
+.mc img { display: block; width: 40px; height: 40px; pointer-events: none; }
+.mc .ev { position: absolute; left: 0; right: 0; bottom: 0; height: 16px; line-height: 16px; text-align: center; white-space: nowrap; overflow: hidden; color: var(--ink);
+  background: color-mix(in srgb, var(--mc) 60%, var(--paper)); box-shadow: inset 0 2px 0 rgba(255,255,255,.35); border-top: 2px solid var(--brown); }
+.mc .ct { position: absolute; right: -4px; top: -4px; padding: 0 2px; line-height: 12px; background: var(--leather); color: var(--paper); border: 2px solid var(--ink); z-index: 1; }
+.mc:hover { background: var(--gold); border-color: var(--rust); }
+.mc:hover .ev { border-top-color: var(--rust); }
+.mc.tap img { animation: tap .12s steps(2); }
+.mc.empty { cursor: default; }
+.mc.empty img, .mc.empty .ev { opacity: .4; filter: grayscale(.7); }
+.mc.empty:hover { background: var(--paper2); border-color: var(--brown); }
+.mc.deny { animation: lack .3s steps(4); }
+@keyframes tap { 50% { transform: translateY(-4px) scale(.85); } }
+.mats-empty { color: var(--dim); text-align: center; padding-top: 180px; }
+
+/* 这一锅：标本卡。框里是成品，下面名字、类型；中间药效；最下面每次出瓶得多少 */
+#wsRight { right: 12px; top: 12px; width: 216px; height: 464px; padding: 4px 6px 6px; display: flex; flex-direction: column; }
+#brewTag .bi-tag { display: inline-block; padding: 0 4px; line-height: 16px; white-space: nowrap; background: var(--paper2); border: 2px solid var(--line); }
+#brewInfo { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.bi-hero { flex: none; text-align: center; padding: 6px 0 10px; border-bottom: 2px dashed var(--line); }
+.bi-pic { width: 80px; height: 80px; margin: 0 auto 8px; border: 4px solid transparent; border-image: url('assets/ui/slot.png?v=1018b') 14 fill / 14px stretch; display: flex; align-items: center; justify-content: center; }
+.bi-pic img { width: 36px; height: 48px; }
+.bi-pic img.sd { width: 40px; height: 40px; }
+.bi-pic .bq, .bi-pic .bx { font-size: 24px; line-height: 28px; font-weight: normal; }
+.bi-pic .bq { color: var(--gold); animation: badge .6s steps(2) infinite alternate; }
+.bi-pic .bx { color: #ff8a7a; }
+#brewInfo.idle .bi-pic { opacity: .5; }
+.bi-nm { font-size: 24px; line-height: 28px; color: var(--rust); word-break: break-all; }
+.bi-nm.long { font-size: 12px; line-height: 16px; padding: 6px 0; }
+#brewInfo.idle .bi-nm { color: var(--dim); }
+.bi-mode { color: var(--dim); margin-top: 2px; }
+.bi-body { flex: 1; min-height: 0; overflow-y: auto; padding: 0 2px; }
+.bi-sec { color: var(--brown); margin: 8px 0 2px; }
+.bi-ins { line-height: 16px; }
+.bi-ins div { padding-left: 12px; text-indent: -12px; margin-bottom: 4px; }
+.bi-tips { padding-top: 12px; color: var(--dim); }
+.bi-tips div { display: flex; gap: 6px; margin-bottom: 8px; }
+.bi-tips i { flex: none; width: 16px; height: 16px; line-height: 14px; text-align: center; font-style: normal; color: var(--paper); background: var(--brown); }
+.bi-foot { flex: none; display: flex; justify-content: space-between; padding: 6px 2px 0; border-top: 2px dashed var(--line); color: var(--dim); }
+.bi-foot span:last-child { color: var(--rust); }
+@keyframes badge { to { transform: translateY(-4px); } }
+
+/* 右下角一行：离开占满右栏剩下的宽度，后面是笔记、设置两个方块 */
+#alcFoot { position: absolute; left: 732px; right: 108px; top: 488px; height: 40px; display: flex; }
+#btnOut { flex: 1; padding: 0 0 4px; }
+/* 纸面上的滚动条 */
+#mats::-webkit-scrollbar, .bi-body::-webkit-scrollbar, #bagList::-webkit-scrollbar, #bagInfo::-webkit-scrollbar { width: 6px; height: 6px; }
+#mats::-webkit-scrollbar-track, .bi-body::-webkit-scrollbar-track, #bagList::-webkit-scrollbar-track, #bagInfo::-webkit-scrollbar-track { background: var(--paper2); }
+#mats::-webkit-scrollbar-thumb, .bi-body::-webkit-scrollbar-thumb, #bagList::-webkit-scrollbar-thumb, #bagInfo::-webkit-scrollbar-thumb { background: var(--brown); }
+#mats, .bi-body, #bagList, #bagInfo { scrollbar-width: thin; scrollbar-color: var(--brown) var(--paper2); }
+
+/* ---------- 飘字 / 遮罩卡片 / 提示 ---------- */
+#popups { position: absolute; inset: 0; pointer-events: none; }
+.popup { position: absolute; transform: translate(-50%, -100%); white-space: nowrap; text-shadow: 2px 0 var(--ink), -2px 0 var(--ink), 0 2px var(--ink), 0 -2px var(--ink); animation: rise 1s steps(10) forwards; }
+.popup.big { font-size: 24px; line-height: 28px; }
+@keyframes rise { 0% { margin-top: 0; } 15% { margin-top: -8px; } 100% { margin-top: -28px; opacity: 0; } }
+#overlay { position: absolute; inset: 0; z-index: 30; background: rgba(18,12,14,.62); display: flex; align-items: center; justify-content: center; }
+#overlay .card { position: relative; width: 580px; max-height: 510px; overflow-y: auto; text-align: center; }
+#overlay .card p { margin: 6px 0; }
+#overlay h1 { font-size: 48px; line-height: 56px; color: var(--rust); text-shadow: 6px 6px var(--paper3); font-weight: normal; margin: 4px 0 8px; }
+#overlay h2 { font-size: 24px; line-height: 28px; color: var(--rust); font-weight: normal; }
+#overlay .sub { color: var(--dim); }
+#overlay .credit { color: var(--dim); opacity: .7; margin: 14px 0 -4px; }
+#overlay .credit a { color: inherit; }
+.row-btns { display: flex; gap: 10px; justify-content: center; margin-top: 12px; }
+
+/* ---------- 标题画面：写在坑底上方的天上（镜头见 G.titleScene），没有卡片、不压暗 ---------- */
+#overlay.title { background: none; display: block; pointer-events: none; }
+#overlay.title.out { animation: ttOut .6s steps(6) forwards; }
+@keyframes ttOut { to { opacity: 0; } }
+.tt-vig { position: absolute; inset: 0; background: radial-gradient(ellipse 75% 85% at 58% 42%, transparent 55%, rgba(89,62,71,.32) 100%); }
+.tt-logo { position: absolute; left: 400px; top: 58px; width: 320px; text-align: center; }
+/* 标题字：60px = 原字 5 倍，一个字的像素 = 5px，描边、投影也按 5px 走。种树绿、炼金金、吃果果红 */
+#overlay .tt-name, .tt-eat { position: relative; margin: 0; font-weight: normal; white-space: nowrap; }
+#overlay .tt-name { font-size: 60px; line-height: 70px; letter-spacing: 6px; margin-right: -6px; }
+.tt-eat { font-size: 72px; line-height: 80px; letter-spacing: 4px; margin: -4px -4px 0 0; }
+#overlay .tt-name span, .tt-eat span { display: inline-block; color: var(--gold);
+  text-shadow: 5px 0 var(--bark), -5px 0 var(--bark), 0 5px var(--bark), 0 -5px var(--bark), 5px 5px var(--bark), -5px 5px var(--bark), 5px -5px var(--bark), -5px -5px var(--bark), 5px 10px rgba(89,62,71,.3), 0 10px rgba(89,62,71,.3);
+  animation: ttDrop .5s steps(4) both; }
+.tt-eat span { text-shadow: 6px 0 var(--bark), -6px 0 var(--bark), 0 6px var(--bark), 0 -6px var(--bark), 6px 6px var(--bark), -6px 6px var(--bark), 6px -6px var(--bark), -6px -6px var(--bark), 6px 12px rgba(89,62,71,.3), 0 12px rgba(89,62,71,.3);
+  animation-name: ttHop; animation-duration: .6s; }
+#overlay .tt-name .g { color: var(--green); }
+.tt-eat .e { color: #f08a4b; transform: rotate(-4deg); }
+.tt-eat .f { color: #e4574a; }
+/* 两个「果」落下来以后每隔一会儿轮流蹦一下 */
+.tt-eat .f { animation: ttHop .6s steps(4) both, ttBob 2.4s steps(1) 2.2s infinite; }
+.tt-eat .f + .f { animation: ttHop .6s steps(4) both, ttBob 2.4s steps(1) 2.5s infinite; }
+@keyframes ttDrop { from { opacity: 0; transform: translateY(-12px); } }
+@keyframes ttHop { 0% { opacity: 0; transform: translateY(-36px); } 50% { opacity: 1; transform: translateY(0); } 75% { transform: translateY(-8px); } }
+@keyframes ttBob { 0%, 20%, 100% { transform: none; } 8% { transform: translateY(-6px); } }
+@keyframes ttFade { from { opacity: 0; } }
+/* 一串果子：一个个冒出来，挂着轻轻晃 */
+.tt-fruits { display: flex; justify-content: center; gap: 10px; margin-top: 8px; }
+.tt-fruits i { animation: ttPop .3s steps(3) both; }
+.tt-fruits img { display: block; width: 40px; height: 40px; animation: ttSwing 2s steps(2) infinite; transform-origin: 50% 0; }
+@keyframes ttPop { 0% { opacity: 0; transform: scale(0); } 66% { opacity: 1; transform: scale(1.2); } }
+@keyframes ttSwing { 0%, 100% { transform: rotate(-6deg); } 50% { transform: rotate(6deg); } }
+.tt-tag { margin: 10px -40px 0; color: var(--leather); animation: ttFade .8s steps(4) 2.4s both; }
+.tt-menu { margin-top: 22px; display: flex; flex-direction: column; align-items: center; gap: 4px; animation: ttFade .6s steps(3) 2.8s both; }
+.tt-it { position: relative; pointer-events: auto; cursor: pointer; font-size: 24px; line-height: 32px; padding: 0 8px; color: var(--brown-d); white-space: nowrap; }
+.tt-it .s { position: absolute; left: 100%; top: 0; font-size: 12px; color: var(--brown); white-space: nowrap; }
+.tt-it .tt-cur { position: absolute; right: 100%; top: 6px; visibility: hidden; }
+.tt-it.on { color: var(--bark); text-shadow: 0 2px var(--paper); }
+.tt-it.on .tt-cur { visibility: visible; animation: ttSway 1.2s steps(1) infinite; }
+.tt-it.arm { color: var(--rust); }
+.tt-it.on::after { content: ''; position: absolute; left: 8px; right: 8px; bottom: 0; height: 2px; background: var(--gold-d); }
+.tt-it.arm::after { background: var(--rust); }
+@keyframes ttSway { 50% { transform: translateY(-2px); } }
+.tt-credit { position: absolute; left: 400px; width: 320px; bottom: 14px; text-align: center; color: var(--brown-d); opacity: .75; }
+.tt-credit a { color: inherit; pointer-events: auto; }
+/* 一封信从崖顶飘下来，打着转落进坑里 */
+.tt-letter { position: absolute; left: 236px; top: -40px; animation: ttFall 17s linear 4s infinite both; }
+.tt-letter > div { animation: ttFlut 3.4s ease-in-out infinite; }
+@keyframes ttFall { from { transform: translateY(0); } 70%, to { transform: translateY(600px); } }
+@keyframes ttFlut { 0%, 100% { transform: translateX(-20px) rotate(-14deg); } 50% { transform: translateX(22px) rotate(12deg); } }
+/* 风里的沙粒 */
+.tt-sand i { position: absolute; width: 2px; height: 2px; background: #fff3d6; opacity: .7; animation: ttWind 11s linear infinite; }
+.tt-sand i:nth-child(1) { top: 120px; animation-delay: -1s; }
+.tt-sand i:nth-child(2) { top: 210px; animation-delay: -4s; animation-duration: 14s; }
+.tt-sand i:nth-child(3) { top: 300px; animation-delay: -7s; }
+.tt-sand i:nth-child(4) { top: 380px; animation-delay: -2.5s; animation-duration: 9s; }
+.tt-sand i:nth-child(5) { top: 450px; animation-delay: -9s; animation-duration: 13s; }
+.tt-sand i:nth-child(6) { top: 170px; animation-delay: -5.5s; animation-duration: 16s; width: 4px; }
+.tt-sand i:nth-child(7) { top: 340px; animation-delay: -12s; animation-duration: 12s; }
+@keyframes ttWind { from { transform: translate(980px, 0); } 50% { transform: translate(560px, 18px); } to { transform: translate(140px, -6px); opacity: 0; } }
+.harvest-grid { display: flex; flex-wrap: wrap; gap: 4px; justify-content: center; margin: 6px 0; }
+.hv { width: 76px; padding: 4px 0; background: var(--paper2); border: 2px solid var(--brown); }
+.hv img { width: 40px; height: 40px; margin: 2px 0; }
+.harvest-grid.small .hv { width: 64px; }
+#tooltip { position: absolute; z-index: 60; max-width: 300px; border: 6px solid transparent; border-image: url('assets/ui/parchment.png?v=1018b') 12 fill / 12px round; padding: 4px 6px; pointer-events: none; color: var(--text); }
+/* 设置：右下角方形按钮 + 弹出面板 */
+#btnSet { position: absolute; right: 12px; bottom: 12px; z-index: 15; width: 40px; height: 40px; padding: 0 0 4px; display: flex; align-items: center; justify-content: center; }
+#btnSet.on { filter: brightness(.9); }
+#setPanel { right: 12px; bottom: 60px; z-index: 15; width: 210px; padding: 6px 10px 8px; }
+.set-row { display: flex; justify-content: space-between; align-items: center; margin-top: 6px; }
+#btnMute { min-width: 40px; }
+
+/* ---------- 峭壁：收获小结、摘果计数、换层大标题 ---------- */
+#pickBox { right: 12px; top: 88px; min-width: 120px; }
+#pickBox.bump { animation: bump .18s steps(2); }
+#pickBox img { width: 40px; height: 40px; }
+#banner { position: absolute; left: 0; right: 0; top: 170px; text-align: center; pointer-events: none; }
+#banner .bt { font-size: 48px; line-height: 56px; color: var(--gold); text-shadow: 6px 0 var(--ink), -6px 0 var(--ink), 0 6px var(--ink), 0 -6px var(--ink), 6px 6px var(--ink); }
+#banner .bs { font-size: 24px; line-height: 28px; color: #fff; text-shadow: 2px 0 var(--ink), -2px 0 var(--ink), 0 2px var(--ink), 0 -2px var(--ink); margin-top: 6px; }
+#banner.show { animation: bannerIn 3.2s steps(16) forwards; }
+@keyframes bannerIn { 0% { opacity: 0; transform: translateY(12px); } 12% { opacity: 1; transform: none; } 80% { opacity: 1; } 100% { opacity: 0; } }
+#plotTag.hidden { display: none; }
+/* 睡觉按钮固定在屏幕下方、操作提示上面，不挡小禾和头顶的 z */
+#btnSleep { position: absolute; left: 50%; bottom: 40px; transform: translateX(-50%); white-space: nowrap; }
+#btnSleep:active { transform: translate(-50%, 2px); }
+#btnSleep { touch-action: none; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; }
+#btnSleep .sl-bar { position: absolute; left: 0; top: 0; bottom: 0; width: 0; background: rgba(255,255,255,.28); pointer-events: none; }
+#btnSleep span { position: relative; pointer-events: none; }
+
+/* ================= 植物学笔记 ================= */
+/* 右下角：笔记按钮（设置按钮左边）。有新内容时右上角一个红点 */
+#btnNote { position: absolute; right: 60px; bottom: 12px; z-index: 15; width: 40px; height: 40px; padding: 0 0 4px; display: flex; align-items: center; justify-content: center; }
+#btnNote img { width: 28px; height: 28px; }
+#btnNote .dot { position: absolute; right: 4px; top: 4px; width: 8px; height: 8px; background: #e4574a; border: 2px solid var(--ink); animation: blink .8s steps(1) infinite; }
+/* 新记下一页：右下角一张小纸条 */
+#noteToast { position: absolute; left: 12px; bottom: 12px; z-index: 16; display: flex; align-items: center; gap: 6px; padding: 2px 8px 2px 4px; border: 6px solid transparent; border-image: url('assets/ui/paper.png?v=1018b') 12 fill / 12px round; pointer-events: none; white-space: nowrap; }
+#noteToast img { width: 28px; height: 28px; }
+#noteToast .tt { color: var(--dim); }
+#noteToast .tn { color: var(--pen); }
+#game.phase-alchemy #btnBag { right: 12px; } /* 炼药时库存按钮换到设置按钮的位置 */
+#game.phase-alchemy #noteToast { left: auto; right: 12px; bottom: 64px; } /* 炼药时贴在右栏底上，不挡材料和出瓶 */
+#noteToast.show { animation: toastIn 3s steps(12) forwards; }
+@keyframes toastIn { 0% { transform: translateY(20px); opacity: 0; } 8% { transform: none; opacity: 1; } 85% { opacity: 1; } 100% { opacity: 0; } }
+
+#noteBook { position: absolute; inset: 0; z-index: 40; }
+#noteBook .bk-dim { position: absolute; inset: 0; background: rgba(18,12,14,.8); }
+.bk-book { position: absolute; left: 40px; top: 56px; width: 880px; height: 468px; }
+.bk-page { position: absolute; top: 0; width: 440px; height: 468px; }
+.bk-page.l { left: 0; border-style: solid; border-width: 8px 20px 28px 22px; border-image: url('assets/ui/book_l.png?v=1018b') 8 20 28 22 fill / 8px 20px 28px 22px stretch; }
+.bk-page.r { left: 440px; border-style: solid; border-width: 8px 22px 28px 20px; border-image: url('assets/ui/book_r.png?v=1018b') 8 22 28 20 fill / 8px 22px 28px 20px stretch; }
+/* 纸页：16px 一行的横线，和字的行高对齐 */
+.bk-pg { position: absolute; left: 10px; right: 10px; top: 14px; bottom: 26px; overflow: hidden; color: var(--leather);
+  background: repeating-linear-gradient(to bottom, transparent 0 15px, rgba(242,184,136,.55) 15px 16px); }
+.bk-page.flip .bk-pg { animation: pgFlip .24s steps(4); }
+@keyframes pgFlip { 0% { opacity: 0; transform: translateX(var(--fx, 12px)); } }
+.bk-no { position: absolute; left: 0; right: 0; bottom: 6px; text-align: center; color: var(--brown); }
+.bk-pg h3 { font-size: 24px; line-height: 32px; font-weight: normal; color: var(--rust); }
+.bk-pg h4 { font-weight: normal; color: var(--rust); margin-top: 16px; }
+.bk-pg h4:first-child { margin-top: 0; }
+.bk-pg p { text-indent: 2em; }
+.bk-pg .pen, .bk-pg .pen h3, .bk-pg .pen h4 { color: var(--pen); }
+.bk-pg .pen h3, .bk-pg .pen h4 { color: #2c5a8a; }
+.bk-pg .by { text-align: right; color: var(--brown); }
+.bk-pg .pen .by { color: #6a80a8; }
+.bk-pg .blank { color: #d3b48e; text-align: center; padding-top: 160px; }
+.bk-pg .more { color: #d3b48e; text-align: center; margin-top: 16px; }
+.bk-pg .lock { color: #c9a882; }
+.bk-pg .lock b { color: #c9a882; }
+.bk-pg kbd { background: var(--leather); }
+/* 扉页 */
+.bk-title { text-align: center; padding-top: 40px; }
+.bk-title h3 { font-size: 48px; line-height: 56px; }
+.bk-stats { margin: 20px auto 0; width: 260px; text-align: left; }
+.bk-stats div { display: flex; justify-content: space-between; }
+.bk-stats .tot { margin-top: 8px; padding-top: 6px; border-top: 2px dashed var(--line); color: var(--rust); }
+/* 植物页 */
+.bk-plant .hd { display: flex; gap: 10px; align-items: center; margin-bottom: 8px; }
+.bk-plant .ph { flex: none; width: 64px; height: 64px; border: 4px solid transparent; border-image: url('assets/ui/slot.png?v=1018b') 14 fill / 14px stretch; display: flex; align-items: center; justify-content: center; }
+.bk-plant .ph img { width: 40px; height: 40px; }
+.bk-plant .ph.q { font-size: 24px; color: #6a5560; }
+.bk-plant .nm { font-size: 24px; line-height: 28px; color: var(--rust); }
+.bk-plant .pen .nm { color: #2c5a8a; }
+.bk-plant .tier { display: inline-block; padding: 0 4px; background: var(--paper2); border: 2px solid var(--line); color: var(--dim); }
+.bk-plant .k { color: var(--brown); }
+.bk-fruits { display: flex; flex-wrap: wrap; gap: 4px 8px; margin-top: 2px; }
+.bk-fruits span { display: inline-flex; align-items: center; gap: 2px; }
+.bk-fruits img { width: 40px; height: 40px; }
+.bk-fruits .q { display: inline-block; width: 40px; height: 40px; line-height: 36px; text-align: center; border: 2px dashed #d3b48e; color: #c9a882; font-style: normal; }
+/* 材料 / 药方的条目 */
+.bk-item { display: flex; gap: 8px; padding: 4px 0 6px; border-bottom: 2px dashed rgba(212,198,146,.7); }
+.bk-item:last-child { border-bottom: 0; }
+.bk-item .ic { flex: none; width: 48px; height: 52px; background: var(--paper2); border: 2px solid var(--brown); display: flex; align-items: center; justify-content: center; }
+.bk-item .ic img { width: 40px; height: 40px; }
+.bk-item .ic.bt img { width: 36px; height: 48px; }
+.bk-item .ic.q { border-style: dashed; border-color: #d3b48e; background: none; color: #c9a882; }
+.bk-item .bd { flex: 1; min-width: 0; }
+.bk-item .nm { color: var(--rust); }
+.bk-item.pen .nm { color: #2c5a8a; }
+.bk-item.pen { color: var(--pen); }
+.bk-item .tg { color: var(--dim); margin-left: 6px; }
+.bk-item .rc { display: flex; align-items: center; gap: 0; margin: 2px 0; }
+.bk-item .rc img { width: 40px; height: 40px; }
+.bk-item.lock { color: #c9a882; }
+.bk-item.lock .nm { color: #c9a882; }
+/* 鸟儿捎来的信：夹在笔记里的一张信纸 */
+.bk-letter { padding: 10px 12px 8px; background: #fff2d8; border: 2px solid var(--line); box-shadow: 4px 4px 0 var(--paper3); transform: rotate(-1deg); color: var(--ink); }
+.bk-letter .lt-hd { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8px; padding-bottom: 6px; border-bottom: 2px dashed var(--line); color: var(--dim); }
+.bk-letter .lt-stamp { padding: 2px 6px; border: 2px solid var(--rust); color: var(--rust); line-height: 14px; text-align: center; transform: rotate(6deg); }
+.bk-letter h4 { color: var(--ink); margin-bottom: 4px; }
+.bk-letter .lt-sign { text-align: right; margin-top: 8px; color: var(--rust); }
+.bk-letter .lt-ps { text-indent: 0; margin-top: 6px; color: var(--dim); }
+.bk-letter .lt-rc { display: flex; flex-wrap: wrap; align-items: center; gap: 2px; margin: 6px 0 2px; }
+.bk-letter .lt-rc span { display: flex; flex-direction: column; align-items: center; min-width: 40px; color: var(--ink); }
+.bk-letter .lt-rc img { width: 32px; height: 32px; }
+.bk-letter .lt-rc i { font-style: normal; color: var(--dim); }
+.bk-scrap { background: #f6e6c4; transform: rotate(1.5deg); }
+.bk-letter .by { margin-top: 6px; }
+/* 书签：从书顶上露出来的缎带 */
+.bk-tabs { position: absolute; left: 470px; top: -40px; display: flex; gap: 6px; }
+.bk-tab { position: relative; width: 48px; height: 48px; padding-top: 10px; text-align: center; cursor: pointer; color: var(--paper); background: var(--c); border: 2px solid var(--ink); border-bottom: 0;
+  box-shadow: inset 0 0 0 2px rgba(255,255,255,.18); clip-path: polygon(0 0, 50% 6px, 100% 0, 100% 100%, 0 100%); transform: translateY(8px); transition: transform .1s steps(2); }
+.bk-tab:hover { transform: translateY(4px); }
+.bk-tab.on { transform: translateY(0); }
+.bk-tab.lt { color: var(--ink); }
+.bk-tab .dot { position: absolute; right: 4px; top: 6px; width: 8px; height: 8px; background: #e4574a; border: 2px solid var(--ink); }
+.bk-arrow { position: absolute; bottom: -2px; z-index: 2; }
+.bk-arrow.prev { left: 18px; } .bk-arrow.next { right: 18px; }
+.bk-close { position: absolute; right: 0; top: -40px; }
+
+/* ================= 皮革界面（TravelBook Lite，tools/build_ui_travelbook.py 切出、放大 2 倍） =================
+   面板是带铜角的棕色皮革（九宫格 24，向外多画 10px），格子是深色木槽（九宫格 8）。纸只留给笔记、标签卡和开场卡片 */
+:root { --lt: #f3d9b8; --lt2: #c9a48a; }
+.px-panel, .px-panel.pin { border: 6px solid transparent; border-image: url('assets/ui/tb_leather_s.png?v=1018b') 24 fill / 24px / 10px stretch; color: var(--lt); }
+.px-panel.pin { padding: 6px 8px; }
+.ptitle { color: var(--gold); text-shadow: 2px 2px #2a1a1a; }
+
+/* 格子 */
+.hslot { width: 52px; height: 64px; background: none; border: 8px solid transparent; border-image: url('assets/ui/tb_slot.png?v=1018b') 8 fill / 8px stretch; }
+.hslot img { left: 0; top: 0; }
+.hslot .key { left: -4px; top: -6px; color: var(--lt); text-shadow: 2px 2px #1a1010; }
+.hslot .cnt { right: -10px; bottom: -10px; }
+.hslot .mode { right: -4px; top: -4px; }
+.hslot .ghost { left: 10px; top: 10px; border-color: rgba(243,217,184,.18); }
+.hslot:hover { background: none; filter: brightness(1.15); }
+.hslot.pouring, .bg-grp .hslot.cur { background: none; border-image-source: url('assets/ui/tb_slot_on.png?v=1018b'); }
+.hslot.pouring::after, .bg-grp .hslot.cur::after, .bcard.sel::after {
+  content: ''; position: absolute; inset: -16px; border: 12px solid transparent; border-image: url('assets/ui/tb_cursor.png?v=1018b') 12 / 12px; pointer-events: none; }
+
+/* 主页面：去掉纸条，格子直接浮在画面上 */
+.hbar { border: 0; border-image: none; padding: 0; gap: 4px; top: 8px; }
+#plotBox { top: 82px; }
+#seedMenu { top: 118px; }
+
+/* 库存：皮革药箱 */
+.bg-head .ptitle span { color: var(--lt2); }
+#bagList { background: rgba(30,16,16,.35); }
+.bcard { background: none; border: 8px solid transparent; border-image: url('assets/ui/tb_slot.png?v=1018b') 8 fill / 8px stretch; color: var(--lt); }
+.bcard img { margin: 0; }
+.bcard .ct { right: -10px; top: -10px; }
+.bcard .on { left: -10px; top: -10px; }
+.bcard:hover { background: none; filter: brightness(1.15); }
+.bcard.sel { background: none; border-image-source: url('assets/ui/tb_slot_on.png?v=1018b'); box-shadow: none; }
+#bagInfo, #brewInfo { background: none; border: 12px solid transparent; border-image: url('assets/ui/tb_label.png?v=1018b') 12 fill / 12px stretch; padding: 0 2px; color: var(--text); }
+.bg-grp { background: none; border: 0; padding: 6px; }
+#bagList::-webkit-scrollbar-track, #mats::-webkit-scrollbar-track { background: #45292a; }
+#bagList::-webkit-scrollbar-thumb, #mats::-webkit-scrollbar-thumb { background: #825f60; }
+#bagList, #mats { scrollbar-color: #825f60 #45292a; }
+
+/* 炼金：皮革向外多画 10px，所以两栏的盒子各缩进 10px，看得见的边仍落在 12 / 228、732 / 948 */
+#wsMats { left: 22px; top: 22px; width: 196px; height: 496px; padding: 0 0 2px; }
+#wsRight { right: 22px; top: 22px; width: 196px; height: 444px; padding: 0; }
+.ws-head { margin: 0 0 6px; }
+.ws-sub { color: var(--lt2); }
+
+/* 锅位：深色木槽，下一格亮起，放了材料的格子套上四角光标 */
+.pslot .pf { width: 60px; height: 60px; border: 8px solid transparent; border-image: url('assets/ui/tb_slot.png?v=1018b') 8 fill / 8px stretch; }
+.pslot .pf img { margin: 2px; }
+.pslot .pf .no { left: -4px; top: -6px; color: var(--lt); }
+.pslot.next .pf { border-image-source: url('assets/ui/tb_slot_on.png?v=1018b'); }
+.pslot.on .pf, .pslot.bad .pf { box-shadow: none; }
+.pslot.on .pf::after { content: ''; position: absolute; inset: -16px; border: 12px solid transparent; border-image: url('assets/ui/tb_cursor.png?v=1018b') 12 / 12px; }
+.pslot .arw { top: 20px; }
+
+/* 材料栏：三列木槽，槽下面一行按作用上色的小字；右上角金色数字是剩几份 */
+#mats { padding: 0; }
+.mg-h { color: var(--lt2); margin: 8px 0 6px; }
+.mg-h::after { border-top-color: rgba(201,164,138,.35); }
+.mg { grid-template-columns: repeat(3, 56px); gap: 4px; padding: 0; }
+.mc { width: 56px; height: 74px; background: none; border: 0; box-shadow: none; }
+.mc::before { content: ''; position: absolute; left: 0; top: 0; width: 56px; height: 56px; border: 8px solid transparent; border-image: url('assets/ui/tb_slot.png?v=1018b') 8 fill / 8px stretch; box-sizing: border-box; }
+.mc img { position: absolute; left: 8px; top: 8px; }
+.mc .ev { top: 58px; bottom: auto; background: none; box-shadow: none; border: 0; color: var(--mc); text-shadow: 2px 2px #1a1010; }
+.mc .ct { right: 8px; top: 6px; padding: 0; background: none; border: 0; line-height: 16px; color: var(--gold); text-shadow: 2px 2px #1a1010, -2px 0 #1a1010; }
+.mc:hover { background: none; border: 0; filter: brightness(1.2); }
+.mc:hover::before { border-image-source: url('assets/ui/tb_slot_on.png?v=1018b'); }
+.mc.empty:hover { background: none; filter: none; }
+.mc.empty:hover::before { border-image-source: url('assets/ui/tb_slot.png?v=1018b'); }
+.mc.empty .ct { color: var(--lt2); }
+.mats-empty { color: var(--lt2); }
+
+/* 这一锅：皮革里垫一张奶油色标签卡 */
+#brewInfo { padding: 0 4px; }
+.bi-pic { border: 8px solid transparent; border-image: url('assets/ui/tb_slot.png?v=1018b') 8 fill / 8px stretch; }
+.bi-hero { padding-top: 2px; }
+#brewTag .bi-tag { background: #45292a; border-color: #825f60; }
+#brewTag .bi-tag.c-gold { color: var(--gold); } #brewTag .bi-tag.c-green { color: #b5d65a; }
+#btnBrew::after { content: ''; position: absolute; right: 8px; top: 6px; width: 18px; height: 22px; background: url('assets/ui/tb_hold.png?v=1018b'); }
+
+/* ================= 药效小图标 ================= */
+/* 9×9 的像素图按 2 倍显示；叠在瓶身中部，相邻两个共用 1 像素描边 */
+.pchips { position: absolute; left: -8px; right: -8px; top: 22px; display: flex; justify-content: center; align-items: center; pointer-events: none; z-index: 1; }
+.pc { flex: none; display: inline-block; width: 18px; height: 18px; background-size: 100% 100%; image-rendering: pixelated; }
+.pchips .pc + .pc { margin-left: -2px; }
+.pchips b { font-weight: normal; line-height: 12px; padding: 0 2px; margin-left: -2px; color: var(--paper); background: #2e1f22; }
+.picon { position: relative; display: inline-block; flex: none; width: 36px; height: 48px; }
+.picon img { display: block; width: 36px; height: 48px; }
+/* 说明栏里的药效拆解 */
+.bi-ins .ins-row { display: flex; gap: 6px; align-items: flex-start; padding: 0; text-indent: 0; margin-bottom: 8px; }
+.bi-ins .ins-row div { padding: 0; text-indent: 0; margin: 0; }
+.ins-row .pc { margin-top: 0; }
+.ins-h { color: color-mix(in srgb, var(--ac) 50%, #3d3333); line-height: 18px; }
+.ins-h em { font-style: normal; margin-left: 4px; padding: 0 3px; line-height: 14px; display: inline-block; color: #fff; }
+.ins-h .t-pow { background: #c99a1e; } .ins-h .t-echo { background: #9a6fd6; } .ins-h .t-hit { background: #e2493b; }
+.ins-d { line-height: 16px; }
+
+/* ================= 崖顶营地（camp.js）：左上角的堆肥数；堆肥坑、工作台是和炼药锅一样的整屏舞台 ================= */
+/* 堆肥小图标（8×8 按 2 倍，图由 camp.js 画好挂在 --ico-compost 上） */
+.cpi { display: inline-block; flex: none; width: 16px; height: 16px; background: var(--ico-compost) 0 0 / 100% 100%; vertical-align: -3px; margin-right: 2px; font-style: normal; }
+#campBox { left: 10px; top: 82px; display: flex; align-items: center; gap: 4px; padding: 2px 8px 6px; pointer-events: none; white-space: nowrap; }
+#campView { position: absolute; inset: 0; z-index: 40; }
+#cpDim { position: absolute; inset: 0; background: radial-gradient(ellipse 60% 70% at 50% 68%, rgba(20,14,12,.66) 0%, rgba(12,8,10,.86) 62%, rgba(6,4,8,.93) 100%); }
+#cpStage { position: absolute; inset: 0; }
+#cpFx { position: absolute; left: 0; top: 0; width: 960px; height: 540px; pointer-events: none; }
+#game.aberr #cpFx { filter: drop-shadow(4px 0 0 rgba(255,40,90,.6)) drop-shadow(-4px 0 0 rgba(40,210,255,.6)); }
+
+/* 版面和炼药一样：左栏 12–228 ｜ 中间舞台（正中 480，道具底边 452，按钮 488–528）｜ 右栏 732–948，下面一行离开 */
+#cpLeft { left: 22px; top: 22px; width: 196px; height: 496px; padding: 0 0 2px; display: flex; flex-direction: column; }
+#cpRight { right: 22px; top: 22px; width: 196px; height: 444px; padding: 0; display: flex; flex-direction: column; }
+#cpTitle { display: flex; align-items: center; gap: 6px; }
+#cpTitle img { width: 24px; height: 24px; margin: -4px 0; filter: drop-shadow(2px 2px 0 #2a1a1a); }
+#cpList { flex: 1; min-height: 0; overflow-y: auto; overflow-x: hidden; scrollbar-color: #825f60 #45292a; }
+#cpList .mg { padding-top: 6px; }
+#cpRTag .bi-tag { display: inline-block; padding: 0 4px; line-height: 16px; white-space: nowrap; background: #45292a; border: 2px solid #825f60; }
+#cpRTag .c-green { color: #b5d65a; } #cpRTag .c-gold { color: var(--gold); }
+#cpFoot { position: absolute; left: 732px; right: 12px; top: 488px; height: 40px; display: flex; }
+#cpClose { flex: 1; padding: 0 0 4px; }
+#cpKeys { position: absolute; left: 228px; width: 504px; top: 470px; text-align: center; color: var(--lt2); pointer-events: none; text-shadow: 2px 2px #120c0e; }
+#cpKeys kbd { background: var(--paper); color: var(--ink); box-shadow: 0 2px 0 var(--paper3); text-shadow: none; }
+#cpKeys .use { position: static; display: inline-block; text-shadow: none; }
+
+/* 顶上的计数：皮面街机读数（和种植时的养分板一个样） */
+#cpCount { left: 50%; top: 20px; transform: translateX(-50%); display: flex; align-items: center; gap: 12px; padding: 4px 12px 8px; }
+#cpCount .cc-lb { display: flex; align-items: center; color: var(--line); }
+#cpCount .nb-num { min-width: 64px; text-align: right; }
+#cpCount .nb-num.deny { color: #ff7a6a; animation: lack .3s steps(4); }
+
+/* 按住的按钮：道具正下方（和出瓶同一个位置），底下一条蓄力条 */
+#cpHold { position: absolute; left: 384px; top: 488px; width: 192px; height: 40px; padding: 0 0 4px; overflow: hidden; touch-action: none; user-select: none; }
+#cpHold:disabled { filter: grayscale(1) brightness(.85); cursor: default; }
+#cpHold.held { filter: brightness(1.15); transform: translateY(2px); }
+#cpHold.deny { animation: lack .3s steps(4); }
+#cpHold .rc-bar { position: absolute; left: 0; right: 0; bottom: 0; height: 4px; }
+#cpHold .rc-bar i { display: block; height: 100%; width: 0; background: var(--rust); }
+
+/* 堆肥坑左栏：材料格沿用炼药的样子，下面一行是能沤出多少；丢上堆的格子亮起、左下角绿签写着丢了几份 */
+#cpList .mc .ev { display: flex; justify-content: center; align-items: center; }
+#cpList .mc .ev .cpi { margin-right: 0; filter: drop-shadow(2px 2px 0 #1a1010); }
+#cpList .mc.in::before { border-image-source: url('assets/ui/tb_slot_on.png?v=1018b'); }
+#cpList .mc.deny { animation: lack .3s steps(4); }
+.pd { position: absolute; left: -4px; top: 36px; padding: 0 3px; line-height: 14px; font-style: normal; color: var(--ink); background: #b5d65a; border: 2px solid var(--ink); box-shadow: inset 0 -2px 0 var(--green-d); z-index: 1; }
+.use { position: absolute; left: -4px; top: -4px; padding: 0 2px; line-height: 14px; font-style: normal; background: var(--gold); color: var(--ink); border: 2px solid var(--ink); z-index: 1; }
+
+/* 右栏：皮革里垫一张标签卡（和「这一锅」一样） */
+#cpInfo { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 6px; border: 12px solid transparent; border-image: url('assets/ui/tb_label.png?v=1018b') 12 fill / 12px stretch; padding: 0 4px; color: var(--text); }
+.cpi-hero { text-align: center; padding: 2px 0 10px; border-bottom: 2px dashed var(--line); }
+.cpi-hero .bi-pic img { width: 48px; height: 48px; }
+#cpInfo.idle .bi-pic { opacity: .5; }
+#cpInfo.idle .bi-nm { color: var(--dim); }
+.cp-list { flex: 1; overflow-y: auto; min-height: 0; padding-top: 4px; scrollbar-color: var(--paper3) transparent; }
+.cp-row { display: flex; align-items: center; gap: 4px; line-height: 24px; cursor: pointer; padding: 0 2px; }
+.cp-row img { width: 24px; height: 24px; }
+.cp-row i { font-style: normal; color: var(--dim); }
+.cp-row span { margin-left: auto; color: var(--green-t); }
+.cp-row:hover { background: var(--paper2); }
+.cp-row:hover span::after { content: ' ×'; color: var(--rust); }
+.cp-sum { display: flex; align-items: center; gap: 4px; border-top: 2px dashed var(--line); padding-top: 6px; }
+.cp-sum .was, .cp-sum .to { color: var(--dim); }
+.cp-sum b { font-size: 24px; line-height: 24px; color: var(--rust); }
+.cp-sum em { margin-left: auto; padding: 0 4px; font-style: normal; color: var(--ink); background: #b5d65a; border: 2px solid var(--ink); box-shadow: inset 0 -2px 0 var(--green-d); }
+.cp-warn { color: var(--dim); margin-top: -4px; }
+#cpBack { align-self: flex-start; margin-bottom: 4px; }
+
+/* 工作台左栏：一行一样工具 */
+.ub-list { display: flex; flex-direction: column; gap: 4px; padding: 6px 4px; }
+.ub-row { position: relative; display: flex; align-items: center; gap: 8px; height: 60px; padding: 0 6px 0 4px; cursor: pointer; }
+.ub-row:hover { background: rgba(243,217,184,.07); }
+.ub-row.sel { background: rgba(243,217,184,.12); }
+.ub-row.sel::after { content: ''; position: absolute; inset: -4px; border: 12px solid transparent; border-image: url('assets/ui/tb_cursor.png?v=1018b') 12 / 12px; pointer-events: none; }
+.ub-ic { flex: none; width: 48px; height: 48px; display: flex; align-items: center; justify-content: center; border: 8px solid transparent; border-image: url('assets/ui/tb_slot.png?v=1018b') 8 fill / 8px stretch; }
+.ub-ic img { width: 24px; height: 24px; }
+.ub-row.sel .ub-ic { border-image-source: url('assets/ui/tb_slot_on.png?v=1018b'); }
+.ub-nm { flex: 1; display: flex; flex-direction: column; gap: 4px; color: var(--lt); white-space: nowrap; }
+.ub-row.sel .ub-nm { color: var(--gold); }
+.ub-pip { display: flex; gap: 2px; }
+.ub-pip i { width: 10px; height: 10px; background: #2e1c1d; border: 2px solid #825f60; }
+.ub-pip i.on { background: #b5d65a; border-color: var(--ink); box-shadow: inset 0 -2px 0 var(--green-d); }
+.ub-st { display: flex; align-items: center; white-space: nowrap; text-shadow: 2px 2px #1a1010; }
+.ub-st .ok { color: var(--gold); } .ub-st .bad { color: #ff8a7a; }
+.ub-st .cpi { filter: drop-shadow(2px 2px 0 #1a1010); }
+.ub-ok { display: block; width: 18px; height: 14px; background: #b5d65a; filter: drop-shadow(2px 2px 0 #1a1010);
+  clip-path: polygon(0 6px, 4px 6px, 4px 8px, 6px 8px, 6px 10px, 8px 10px, 8px 6px, 10px 6px, 10px 4px, 12px 4px, 12px 2px, 14px 2px, 14px 0, 18px 0, 18px 4px, 16px 4px, 16px 6px, 14px 6px, 14px 8px, 12px 8px, 12px 10px, 10px 10px, 10px 12px, 8px 12px, 8px 14px, 4px 14px, 4px 12px, 2px 12px, 2px 10px, 0 10px); }
+
+/* 工作台右栏：标签卡换成一张藏青网格的蓝图，两角压着胶带 */
+#campView[data-kind="bench"] #cpInfo { border: 0; border-image: none; padding: 0; }
+.ub-bp { position: relative; flex: 1; display: flex; flex-direction: column; gap: 10px; padding: 14px 12px 12px; color: #dce8f5;
+  background-color: #2c3a55;
+  background-image: linear-gradient(rgba(143,195,232,.14) 2px, transparent 2px), linear-gradient(90deg, rgba(143,195,232,.14) 2px, transparent 2px);
+  background-size: 16px 16px; background-position: -2px -2px;
+  border: 2px solid var(--ink); box-shadow: inset 0 0 0 4px #2c3a55, inset 0 0 0 6px rgba(143,195,232,.45), 0 4px 0 rgba(0,0,0,.35); }
+.ub-bp::before, .ub-bp::after { content: ''; position: absolute; top: -6px; width: 36px; height: 14px; background: rgba(232,207,152,.85); box-shadow: inset 0 -2px 0 rgba(194,133,105,.6); }
+.ub-bp::before { left: -10px; } .ub-bp::after { right: -10px; }
+.bp-top { display: flex; align-items: center; gap: 10px; }
+.bp-ic { flex: none; width: 60px; height: 60px; display: flex; align-items: center; justify-content: center; border: 2px dashed rgba(220,232,245,.55); background: rgba(20,28,44,.45); }
+.bp-ic img { width: 48px; height: 48px; filter: drop-shadow(2px 2px 0 rgba(0,0,0,.4)); }
+.bp-nm { font-size: 24px; line-height: 28px; color: #fff; text-shadow: 2px 2px #1b2438; }
+.bp-lv { display: flex; align-items: center; gap: 8px; margin-top: 4px; }
+.bp-lv .ub-pip i { background: #1b2438; border-color: #5a7096; }
+.bp-lv .ub-pip i.on { background: #b5d65a; border-color: var(--ink); }
+.bp-steps { flex: 1; display: flex; flex-direction: column; gap: 6px; border-top: 2px dashed rgba(220,232,245,.3); padding-top: 10px; }
+.bp-step { display: flex; align-items: flex-start; gap: 6px; padding: 4px; }
+.bp-step i { flex: none; position: relative; width: 20px; height: 20px; line-height: 16px; text-align: center; font-style: normal; border: 2px solid currentColor; }
+.bp-step span { padding-top: 2px; }
+.bp-step.got { color: #b5d65a; }
+.bp-step.got i { background: #b5d65a; border-color: var(--ink); }
+.bp-step.got i::after { content: ''; position: absolute; left: 2px; top: 8px; width: 2px; height: 2px; background: var(--ink);
+  box-shadow: 10px -4px var(--ink), 8px -2px var(--ink), 6px 0 var(--ink), 2px 2px var(--ink), 4px 2px var(--ink); }
+.bp-step.next { color: var(--gold); background: rgba(253,209,121,.12); box-shadow: inset 2px 0 0 var(--gold); }
+.bp-step.next i { color: var(--ink); background: var(--gold); border-color: var(--ink); }
+.bp-step.lock { color: #6f84a8; }
+.bp-step.flash { animation: bpFlash .5s steps(2) 2; }
+@keyframes bpFlash { 50% { background: rgba(181,214,90,.35); } }
+.bp-foot { display: flex; align-items: center; justify-content: center; min-height: 44px; }
+.bp-cost { display: flex; align-items: center; gap: 4px; color: #8fc3e8; }
+.bp-cost b { font-size: 24px; line-height: 24px; color: var(--gold); }
+.bp-cost b.bad { color: #ff8a7a; }
+.bp-stamp { padding: 2px 12px 4px; font-size: 24px; line-height: 28px; letter-spacing: 4px; color: #ff8a7a; border: 2px solid #ff8a7a; box-shadow: 0 0 0 2px #2c3a55, 0 0 0 4px #ff8a7a; }
+.bp-stamp.new { animation: stamp .3s steps(3); }
+@keyframes stamp { 0% { transform: scale(1.5); } }
+
+/* ---------- 触屏按键（touch.js）：在 #game 外面，按屏幕实际像素（不随舞台缩放），半透明，黑边不够宽时就叠在画面上 ---------- */
+html { touch-action: manipulation; }
+#touch { position: fixed; inset: 0; z-index: 100; pointer-events: none; color: var(--paper); }
+#touch .tb, #tPad { pointer-events: auto; touch-action: none; -webkit-touch-callout: none; -webkit-tap-highlight-color: transparent; }
+#touch .tb, #tPad i { position: absolute; display: flex; align-items: center; justify-content: center;
+  background: rgba(48,56,67,.55); border: 2px solid rgba(254,225,184,.6); clip-path: var(--notch); }
+#touch .tb.down, #tPad[data-dir="w"] .w, #tPad[data-dir="a"] .a, #tPad[data-dir="d"] .d, #tPad[data-dir="s"] .s { background: rgba(254,225,184,.45); color: var(--ink); }
+#touch .tb.off { opacity: .35; }
+#tPad { position: absolute; left: max(20px, env(safe-area-inset-left)); bottom: 20px; width: 144px; height: 144px; }
+#tPad i { width: 48px; height: 48px; }
+#tPad svg { width: 21px; height: 12px; }
+#tPad .w { left: 48px; top: 0; }
+#tPad .a { left: 0; top: 48px; } #tPad .a svg { transform: rotate(-90deg); }
+#tPad .d { left: 96px; top: 48px; } #tPad .d svg { transform: rotate(90deg); }
+#tPad .s { left: 48px; top: 96px; } #tPad .s svg { transform: rotate(180deg); }
+#tBtns { position: absolute; right: max(20px, env(safe-area-inset-right)); bottom: 20px; width: 160px; height: 136px; }
+#tJump { right: 0; bottom: 0; width: 72px; height: 72px; font-size: 24px; line-height: 24px; }
+#tAct { right: 84px; bottom: 0; min-width: 76px; height: 52px; padding: 0 8px; white-space: nowrap; }
+#tDig { right: 84px; bottom: 64px; width: 52px; height: 52px; font-size: 24px; line-height: 24px; }
+/* 按键叠到画面上时（--liftL / --liftR 由 touch.js 算，舞台像素），画面左下、右下的东西往上挪 */
+#btnBag, #btnNote, #btnSet { bottom: calc(12px + var(--liftR, 0px)); }
+#setPanel { bottom: calc(60px + var(--liftR, 0px)); }
+#noteToast { bottom: calc(12px + var(--liftL, 0px)); }
+/* 触屏时按钮上的键名没用，收起来 */
+body.touch .pxbtn kbd, body.touch .sm-keys { display: none; }
+#rotate { position: fixed; inset: 0; z-index: 200; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 20px;
+  background: #120e10; color: var(--paper); font-size: 24px; line-height: 28px; }
+#rotate svg { transform: rotate(90deg); animation: rotHint 2s steps(1) infinite; }
+@keyframes rotHint { 50% { transform: rotate(0deg); } }
+
+/* ---------- 新手教程（tutorial.js）：上方正中的小提示框，不挡操作；种植时让到养分板下面，炼药时贴在出瓶键上面 ---------- */
+#tutTip { left: 50%; top: 8px; z-index: 35; max-width: 420px; padding: 4px 10px 8px; pointer-events: none; text-align: center;
+  opacity: 0; transform: translate(-50%, -8px); transition: opacity .3s steps(4), transform .3s steps(4); }
+#tutTip.show { opacity: 1; transform: translate(-50%, 0); }
+#tutTip .tt-h { color: var(--gold); line-height: 18px; }
+#tutTip .tt-b { line-height: 18px; }
+#tutTip kbd { margin: 0 1px; }
+#game.phase-plant #tutTip, #game.phase-grow #tutTip { top: 84px; }
+#game.phase-alchemy #tutTip { top: auto; bottom: 64px; }

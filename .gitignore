@@ -1,0 +1,4 @@
+backup_before_*/
+backup_essence_tree/
+__pycache__/
+node_modules/
